@@ -183,7 +183,6 @@ class CaptureActivity : AppCompatActivity() {
             canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
             val crop = frame.cropRect
             val rotation = frame.rotationDegrees
-            Log.d(TAG, "rot=$rotation crop=$crop size=${frame.size}")
             val upright = UprightTransform.uprightSize(crop.width(), crop.height(), rotation)
             matrix.setValues(UprightTransform.uprightToBuffer(crop.left, crop.top, crop.width(), crop.height(), rotation))
             canvas.save()
