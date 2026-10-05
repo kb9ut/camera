@@ -41,6 +41,14 @@ class DateFormatsTest {
     }
 
     @Test
+    fun `整形結果が空になる書式は null`() {
+        assertNull(DateFormats.formatOrNull("[]", time, Locale.ROOT))
+        assertNull(DateFormats.formatOrNull("[[]]", time, Locale.ROOT))
+        assertFalse(DateFormats.isValid("[]"))
+        assertFalse(DateFormats.isValid("[[]]"))
+    }
+
+    @Test
     fun `isValid は正しい書式だけ true`() {
         assertTrue(DateFormats.isValid("yy.MM.dd"))
         assertFalse(DateFormats.isValid("yyyy/M/d {"))

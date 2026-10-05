@@ -15,7 +15,8 @@ object DateFormats {
     fun formatOrNull(pattern: String?, time: ZonedDateTime, locale: Locale = Locale.getDefault()): String? {
         if (pattern.isNullOrBlank()) return null
         return try {
-            DateTimeFormatter.ofPattern(pattern, locale).format(time)
+            // "[]" や "''" のように整形結果が空になる書式は、空のスタンプになるので無効にする。
+            DateTimeFormatter.ofPattern(pattern, locale).format(time).takeIf { it.isNotBlank() }
         } catch (e: IllegalArgumentException) {
             null
         } catch (e: DateTimeException) {
