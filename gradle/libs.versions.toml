@@ -1,0 +1,18 @@
+[versions]
+agp = "9.4.1"
+camerax = "1.6.2"
+
+[libraries]
+camera-core = { module = "androidx.camera:camera-core", version.ref = "camerax" }
+camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camerax" }
+camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camerax" }
+camera-video = { module = "androidx.camera:camera-video", version.ref = "camerax" }
+camera-view = { module = "androidx.camera:camera-view", version.ref = "camerax" }
+camera-effects = { module = "androidx.camera:camera-effects", version.ref = "camerax" }
+appcompat = { module = "androidx.appcompat:appcompat", version = "1.7.1" }
+material = { module = "com.google.android.material:material", version = "1.13.0" }
+preference = { module = "androidx.preference:preference-ktx", version = "1.2.1" }
+junit = { module = "junit:junit", version = "4.13.2" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
