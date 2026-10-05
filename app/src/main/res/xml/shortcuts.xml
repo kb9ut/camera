@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_timer"
+        android:shortcutId="capture_delayed"
+        android:shortcutLongLabel="@string/shortcut_delayed_long"
+        android:shortcutShortLabel="@string/shortcut_delayed_short">
+        <intent
+            android:action="com.ktakata.setcam.action.CAPTURE_DELAYED"
+            android:targetClass="com.ktakata.setcam.CaptureActivity"
+            android:targetPackage="com.ktakata.setcam" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_settings"
+        android:shortcutId="settings"
+        android:shortcutLongLabel="@string/shortcut_settings_long"
+        android:shortcutShortLabel="@string/shortcut_settings_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.ktakata.setcam.settings.SettingsActivity"
+            android:targetPackage="com.ktakata.setcam" />
+    </shortcut>
+</shortcuts>

@@ -1,4 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">setcam</string>
+
+    <string name="shortcut_delayed_short">3秒後に撮影</string>
+    <string name="shortcut_delayed_long">3秒後に撮影</string>
+    <string name="shortcut_settings_short">設定</string>
+    <string name="shortcut_settings_long">setcam の設定</string>
+
+    <string name="toast_saved">保存しました</string>
+    <string name="toast_save_failed">保存に失敗しました</string>
+    <string name="toast_permission_required">カメラとマイクの許可が必要です</string>
+    <string name="toast_camera_failed">カメラを起動できませんでした</string>
+    <string name="cd_recording">録画中</string>
 </resources>

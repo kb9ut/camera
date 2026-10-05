@@ -1,0 +1,231 @@
+package com.ktakata.setcam
+
+import android.Manifest
+import android.annotation.SuppressLint
+import android.content.ContentValues
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.provider.MediaStore
+import android.util.Log
+import android.view.View
+import android.view.WindowManager
+import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
+import androidx.appcompat.app.AppCompatActivity
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.Preview
+import androidx.camera.core.UseCaseGroup
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.video.FallbackStrategy
+import androidx.camera.video.MediaStoreOutputOptions
+import androidx.camera.video.Quality
+import androidx.camera.video.QualitySelector
+import androidx.camera.video.Recorder
+import androidx.camera.video.Recording
+import androidx.camera.video.VideoCapture
+import androidx.camera.video.VideoRecordEvent
+import androidx.camera.view.PreviewView
+import androidx.core.content.ContextCompat
+import androidx.preference.PreferenceManager
+import com.ktakata.setcam.settings.Resolution
+import com.ktakata.setcam.settings.SetcamSettings
+import java.time.LocalDateTime
+
+/** 起動したら（必要ならカウントダウンの後で）2 秒録画して保存し、自分で閉じる。 */
+class CaptureActivity : AppCompatActivity() {
+
+    private lateinit var previewView: PreviewView
+    private lateinit var countdownText: TextView
+    private lateinit var recordingDot: View
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var videoCapture: VideoCapture<Recorder>? = null
+    private var recording: Recording? = null
+    private var awaitingPermission = false
+    private var finishing = false
+
+    private val delaySec: Int
+        get() = if (intent?.action == ACTION_CAPTURE_DELAYED) DELAY_SEC else 0
+
+    private val permissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+            awaitingPermission = false
+            if (result.values.all { it }) startCamera() else finishWithToast(R.string.toast_permission_required)
+        }
+
+    private val stopRecording = Runnable {
+        recording?.stop()
+        recording = null
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_capture)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        previewView = findViewById(R.id.preview_view)
+        countdownText = findViewById(R.id.countdown_text)
+        recordingDot = findViewById(R.id.recording_dot)
+
+        val granted = REQUIRED_PERMISSIONS.all {
+            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+        }
+        if (granted) {
+            startCamera()
+        } else {
+            awaitingPermission = true
+            permissionLauncher.launch(REQUIRED_PERMISSIONS)
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (awaitingPermission || isChangingConfigurations) return
+        mainHandler.removeCallbacksAndMessages(null)
+        val active = recording
+        if (active != null) {
+            // 途中までの動画を保存する。終了は Finalize イベントで行う。
+            active.stop()
+            recording = null
+        } else {
+            finishWithToast(null)
+        }
+    }
+
+    override fun onDestroy() {
+        mainHandler.removeCallbacksAndMessages(null)
+        recording?.close()
+        super.onDestroy()
+    }
+
+    private fun startCamera() {
+        val future = ProcessCameraProvider.getInstance(this)
+        future.addListener({
+            if (finishing) return@addListener
+            try {
+                val provider = future.get()
+                val settings = SetcamSettings.from(PreferenceManager.getDefaultSharedPreferences(this).all)
+                videoCapture = bindUseCases(provider, settings)
+                beginCountdown()
+            } catch (e: Exception) {
+                Log.e(TAG, "camera start failed", e)
+                finishWithToast(R.string.toast_camera_failed)
+            }
+        }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun bindUseCases(provider: ProcessCameraProvider, settings: SetcamSettings): VideoCapture<Recorder> {
+        val selector = CameraSelector.DEFAULT_BACK_CAMERA
+        val capabilities = Recorder.getVideoCapabilities(provider.getCameraInfo(selector))
+        val quality = settings.resolution.toQuality()
+        val recorder = Recorder.Builder()
+            .setQualitySelector(QualitySelector.from(quality, FallbackStrategy.lowerQualityOrHigherThan(quality)))
+            .build()
+        val videoCapture = VideoCapture.Builder(recorder)
+            .setVideoStabilizationEnabled(capabilities.isStabilizationSupported)
+            .build()
+        val preview = Preview.Builder()
+            .setResolutionSelector(
+                ResolutionSelector.Builder()
+                    .setAspectRatioStrategy(AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY)
+                    .build(),
+            )
+            .build()
+        preview.setSurfaceProvider(previewView.surfaceProvider)
+
+        val group = UseCaseGroup.Builder()
+            .addUseCase(preview)
+            .addUseCase(videoCapture)
+            .build()
+        provider.unbindAll()
+        provider.bindToLifecycle(this, selector, group)
+        return videoCapture
+    }
+
+    private fun beginCountdown() {
+        if (delaySec == 0) {
+            startRecording()
+            return
+        }
+        var remaining = delaySec
+        countdownText.visibility = View.VISIBLE
+        val tick = object : Runnable {
+            override fun run() {
+                if (remaining == 0) {
+                    countdownText.visibility = View.GONE
+                    startRecording()
+                    return
+                }
+                countdownText.text = remaining.toString()
+                remaining--
+                mainHandler.postDelayed(this, 1000)
+            }
+        }
+        mainHandler.post(tick)
+    }
+
+    @SuppressLint("MissingPermission") // onCreate で CAMERA と RECORD_AUDIO を確認済み
+    private fun startRecording() {
+        val capture = videoCapture ?: return
+        if (finishing) return
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, FileNames.videoFileName(LocalDateTime.now()))
+            put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, RELATIVE_PATH)
+        }
+        val options = MediaStoreOutputOptions.Builder(contentResolver, MediaStore.Video.Media.EXTERNAL_CONTENT_URI)
+            .setContentValues(values)
+            .build()
+        recording = capture.output
+            .prepareRecording(this, options)
+            .withAudioEnabled()
+            .start(ContextCompat.getMainExecutor(this), ::onRecordEvent)
+    }
+
+    private fun onRecordEvent(event: VideoRecordEvent) {
+        when (event) {
+            is VideoRecordEvent.Start -> {
+                recordingDot.visibility = View.VISIBLE
+                mainHandler.postDelayed(stopRecording, RECORD_DURATION_MS)
+            }
+            is VideoRecordEvent.Finalize -> {
+                recordingDot.visibility = View.GONE
+                val uri = event.outputResults.outputUri
+                val saved = uri != Uri.EMPTY && (
+                    event.error == VideoRecordEvent.Finalize.ERROR_NONE ||
+                        event.error == VideoRecordEvent.Finalize.ERROR_SOURCE_INACTIVE
+                    )
+                if (!saved) Log.e(TAG, "recording failed: error=${event.error}", event.cause)
+                finishWithToast(if (saved) R.string.toast_saved else R.string.toast_save_failed)
+            }
+        }
+    }
+
+    private fun finishWithToast(@StringRes message: Int?) {
+        if (finishing) return
+        finishing = true
+        if (message != null) Toast.makeText(applicationContext, message, Toast.LENGTH_SHORT).show()
+        finishAndRemoveTask()
+    }
+
+    private fun Resolution.toQuality(): Quality = when (this) {
+        Resolution.FHD -> Quality.FHD
+        Resolution.UHD -> Quality.UHD
+        Resolution.HD -> Quality.HD
+    }
+
+    companion object {
+        const val ACTION_CAPTURE_DELAYED = "com.ktakata.setcam.action.CAPTURE_DELAYED"
+        private const val TAG = "CaptureActivity"
+        private const val DELAY_SEC = 3
+        private const val RECORD_DURATION_MS = 2000L
+        private const val RELATIVE_PATH = "Movies/setcam"
+        private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
+    }
+}
