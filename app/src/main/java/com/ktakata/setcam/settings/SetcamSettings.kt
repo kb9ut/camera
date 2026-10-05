@@ -17,7 +17,6 @@ data class SetcamSettings(val resolution: Resolution, val stamp: StampStyle?) {
         const val KEY_FONT = "stamp_font"
         const val KEY_COLOR = "stamp_color"
         const val KEY_SIZE = "stamp_size"
-        const val KEY_PREVIEW = "stamp_preview"
 
         const val PRESET_CUSTOM = "custom"
         val PRESET_PATTERNS = listOf(

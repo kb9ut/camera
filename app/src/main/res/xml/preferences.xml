@@ -2,10 +2,6 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
-    <com.ktakata.setcam.settings.StampPreviewPreference
-        android:key="stamp_preview"
-        app:iconSpaceReserved="false" />
-
     <PreferenceCategory
         android:title="@string/pref_cat_video"
         app:iconSpaceReserved="false">

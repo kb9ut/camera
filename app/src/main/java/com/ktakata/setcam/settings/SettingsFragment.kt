@@ -82,7 +82,7 @@ class SettingsFragment : PreferenceFragmentCompat(), SharedPreferences.OnSharedP
         val isCustom = prefs.getString(SetcamSettings.KEY_FORMAT_PRESET, StampStyle.DEFAULT_PATTERN) ==
             SetcamSettings.PRESET_CUSTOM
         requirePreference<EditTextPreference>(SetcamSettings.KEY_FORMAT_CUSTOM).isVisible = isCustom
-        requirePreference<StampPreviewPreference>(SetcamSettings.KEY_PREVIEW).style =
+        requireActivity().findViewById<StampPreviewView>(R.id.stamp_preview)?.style =
             SetcamSettings.from(prefs.all).stamp
     }
 
