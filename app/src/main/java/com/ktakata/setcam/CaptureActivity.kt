@@ -38,6 +38,7 @@ import androidx.camera.video.VideoCapture
 import androidx.camera.video.VideoRecordEvent
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Observer
 import androidx.preference.PreferenceManager
 import com.ktakata.setcam.settings.Resolution
 import com.ktakata.setcam.settings.SetcamSettings
@@ -53,12 +54,17 @@ class CaptureActivity : AppCompatActivity() {
     private lateinit var countdownText: TextView
     private lateinit var recordingDot: View
 
+    // アプリ自身の Runnable 用。OverlayEffect には渡さない（onStop/onDestroy で全消去するため）。
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    // OverlayEffect 専用。ライブラリが GL 処理を積むので、アプリ側から消してはいけない。
+    private val overlayHandler = Handler(Looper.getMainLooper())
     private var videoCapture: VideoCapture<Recorder>? = null
     private var recording: Recording? = null
     private var overlayEffect: OverlayEffect? = null
     private var awaitingPermission = false
     private var finishing = false
+    private var streamObserver: Observer<PreviewView.StreamState>? = null
 
     private val delaySec: Int
         get() = if (intent?.action == ACTION_CAPTURE_DELAYED) DELAY_SEC else 0
@@ -69,10 +75,11 @@ class CaptureActivity : AppCompatActivity() {
             if (result.values.all { it }) startCamera() else finishWithToast(R.string.toast_permission_required)
         }
 
-    private val stopRecording = Runnable {
-        recording?.stop()
-        recording = null
-    }
+    // Finalize が来るまで recording は保持する（onStop が終了処理を Finalize に任せるため）。
+    private val stopRecording = Runnable { recording?.stop() }
+
+    // STREAMING にならなくても、一定時間で録画に進む。
+    private val streamFallback = Runnable { onStreamReady() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -101,7 +108,6 @@ class CaptureActivity : AppCompatActivity() {
         if (active != null) {
             // 途中までの動画を保存する。終了は Finalize イベントで行う。
             active.stop()
-            recording = null
         } else {
             finishWithToast(null)
         }
@@ -121,13 +127,17 @@ class CaptureActivity : AppCompatActivity() {
             try {
                 val provider = future.get()
                 val settings = SetcamSettings.from(PreferenceManager.getDefaultSharedPreferences(this).all)
+                val stabilize = Recorder.getVideoCapabilities(provider.getCameraInfo(CameraSelector.DEFAULT_BACK_CAMERA))
+                    .isStabilizationSupported
                 videoCapture = try {
-                    bindUseCases(provider, settings, stabilize = true)
+                    bindUseCases(provider, settings, stabilize)
                 } catch (e: IllegalArgumentException) {
+                    // 手ぶれ補正を要求していないなら、同じ失敗を繰り返さない。
+                    if (!stabilize) throw e
                     Log.w(TAG, "binding with stabilization failed, retrying without it", e)
                     bindUseCases(provider, settings, stabilize = false)
                 }
-                beginCountdown()
+                awaitStreaming()
             } catch (e: Exception) {
                 Log.e(TAG, "camera start failed", e)
                 finishWithToast(R.string.toast_camera_failed)
@@ -141,13 +151,12 @@ class CaptureActivity : AppCompatActivity() {
         stabilize: Boolean,
     ): VideoCapture<Recorder> {
         val selector = CameraSelector.DEFAULT_BACK_CAMERA
-        val capabilities = Recorder.getVideoCapabilities(provider.getCameraInfo(selector))
         val quality = settings.resolution.toQuality()
         val recorder = Recorder.Builder()
             .setQualitySelector(QualitySelector.from(quality, FallbackStrategy.lowerQualityOrHigherThan(quality)))
             .build()
         val videoCapture = VideoCapture.Builder(recorder)
-            .setVideoStabilizationEnabled(stabilize && capabilities.isStabilizationSupported)
+            .setVideoStabilizationEnabled(stabilize)
             .build()
         val preview = Preview.Builder()
             .setResolutionSelector(
@@ -176,7 +185,7 @@ class CaptureActivity : AppCompatActivity() {
         val effect = OverlayEffect(
             CameraEffect.PREVIEW or CameraEffect.VIDEO_CAPTURE,
             0,
-            mainHandler,
+            overlayHandler,
         ) { t -> Log.e(TAG, "overlay effect error", t) }
         effect.setOnDrawListener { frame ->
             val canvas = frame.overlayCanvas
@@ -192,6 +201,26 @@ class CaptureActivity : AppCompatActivity() {
             true
         }
         return effect
+    }
+
+    /** カメラが実際に映像を流し始めてから録画に進む（起動待ちで 2 秒を消費しない）。 */
+    private fun awaitStreaming() {
+        val observer = Observer<PreviewView.StreamState> { state ->
+            if (state == PreviewView.StreamState.STREAMING) onStreamReady()
+        }
+        streamObserver = observer
+        previewView.previewStreamState.observe(this, observer)
+        mainHandler.postDelayed(streamFallback, STREAM_WAIT_MS)
+    }
+
+    /** STREAMING かフォールバックのうち、先に来た方で一度だけ進む。 */
+    private fun onStreamReady() {
+        val observer = streamObserver ?: return
+        streamObserver = null
+        previewView.previewStreamState.removeObserver(observer)
+        mainHandler.removeCallbacks(streamFallback)
+        if (finishing) return
+        beginCountdown()
     }
 
     private fun beginCountdown() {
@@ -225,13 +254,18 @@ class CaptureActivity : AppCompatActivity() {
             put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
             put(MediaStore.MediaColumns.RELATIVE_PATH, RELATIVE_PATH)
         }
-        val options = MediaStoreOutputOptions.Builder(contentResolver, MediaStore.Video.Media.EXTERNAL_CONTENT_URI)
-            .setContentValues(values)
-            .build()
-        recording = capture.output
-            .prepareRecording(this, options)
-            .withAudioEnabled()
-            .start(ContextCompat.getMainExecutor(this), ::onRecordEvent)
+        try {
+            val options = MediaStoreOutputOptions.Builder(contentResolver, MediaStore.Video.Media.EXTERNAL_CONTENT_URI)
+                .setContentValues(values)
+                .build()
+            recording = capture.output
+                .prepareRecording(this, options)
+                .withAudioEnabled()
+                .start(ContextCompat.getMainExecutor(this), ::onRecordEvent)
+        } catch (e: Exception) {
+            Log.e(TAG, "recording start failed", e)
+            finishWithToast(R.string.toast_camera_failed)
+        }
     }
 
     private fun onRecordEvent(event: VideoRecordEvent) {
@@ -241,6 +275,7 @@ class CaptureActivity : AppCompatActivity() {
                 mainHandler.postDelayed(stopRecording, RECORD_DURATION_MS)
             }
             is VideoRecordEvent.Finalize -> {
+                recording = null
                 recordingDot.visibility = View.GONE
                 val uri = event.outputResults.outputUri
                 val saved = uri != Uri.EMPTY && (
@@ -271,6 +306,7 @@ class CaptureActivity : AppCompatActivity() {
         private const val TAG = "CaptureActivity"
         private const val DELAY_SEC = 3
         private const val RECORD_DURATION_MS = 2000L
+        private const val STREAM_WAIT_MS = 3000L
         private const val RELATIVE_PATH = "Movies/setcam"
         private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
     }
