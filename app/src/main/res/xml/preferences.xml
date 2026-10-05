@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <com.ktakata.setcam.settings.StampPreviewPreference
+        android:key="stamp_preview"
+        app:iconSpaceReserved="false" />
+
+    <PreferenceCategory
+        android:title="@string/pref_cat_video"
+        app:iconSpaceReserved="false">
+        <ListPreference
+            android:defaultValue="FHD"
+            android:entries="@array/resolution_entries"
+            android:entryValues="@array/resolution_values"
+            android:key="resolution"
+            android:title="@string/pref_resolution"
+            app:iconSpaceReserved="false"
+            app:useSimpleSummaryProvider="true" />
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:title="@string/pref_cat_stamp"
+        app:iconSpaceReserved="false">
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="stamp_enabled"
+            android:title="@string/pref_stamp_enabled"
+            app:iconSpaceReserved="false" />
+        <ListPreference
+            android:defaultValue="yyyy/M/d H:mm"
+            android:dependency="stamp_enabled"
+            android:key="stamp_format_preset"
+            android:title="@string/pref_format"
+            app:iconSpaceReserved="false"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            android:defaultValue="yyyy/M/d H:mm"
+            android:dependency="stamp_enabled"
+            android:dialogMessage="@string/pref_format_custom_dialog_message"
+            android:key="stamp_format_custom"
+            android:title="@string/pref_format_custom_title"
+            app:iconSpaceReserved="false" />
+        <com.ktakata.setcam.settings.PositionGridPreference
+            android:defaultValue="BOTTOM_RIGHT"
+            android:dependency="stamp_enabled"
+            android:key="stamp_position"
+            android:title="@string/pref_position"
+            app:iconSpaceReserved="false" />
+        <ListPreference
+            android:defaultValue="GOTHIC"
+            android:dependency="stamp_enabled"
+            android:entries="@array/font_entries"
+            android:entryValues="@array/font_values"
+            android:key="stamp_font"
+            android:title="@string/pref_font"
+            app:iconSpaceReserved="false" />
+        <ListPreference
+            android:defaultValue="WHITE"
+            android:dependency="stamp_enabled"
+            android:entries="@array/color_entries"
+            android:entryValues="@array/color_values"
+            android:key="stamp_color"
+            android:title="@string/pref_color"
+            app:iconSpaceReserved="false"
+            app:useSimpleSummaryProvider="true" />
+        <SeekBarPreference
+            android:defaultValue="4"
+            android:dependency="stamp_enabled"
+            android:key="stamp_size"
+            android:max="10"
+            android:title="@string/pref_size"
+            app:iconSpaceReserved="false"
+            app:min="2"
+            app:showSeekBarValue="true" />
+    </PreferenceCategory>
+</PreferenceScreen>

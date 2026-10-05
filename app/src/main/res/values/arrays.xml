@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="resolution_entries">
+        <item>FHD（1080p）</item>
+        <item>4K（2160p）</item>
+        <item>HD（720p）</item>
+    </string-array>
+    <string-array name="resolution_values" translatable="false">
+        <item>FHD</item>
+        <item>UHD</item>
+        <item>HD</item>
+    </string-array>
+
+    <string-array name="font_entries">
+        <item>ゴシック</item>
+        <item>明朝</item>
+        <item>等幅</item>
+        <item>デジタル</item>
+    </string-array>
+    <string-array name="font_values" translatable="false">
+        <item>GOTHIC</item>
+        <item>MINCHO</item>
+        <item>MONO</item>
+        <item>DIGITAL</item>
+    </string-array>
+
+    <string-array name="color_entries">
+        <item>白</item>
+        <item>黒</item>
+        <item>黄</item>
+        <item>オレンジ</item>
+        <item>赤</item>
+        <item>緑</item>
+    </string-array>
+    <string-array name="color_values" translatable="false">
+        <item>WHITE</item>
+        <item>BLACK</item>
+        <item>YELLOW</item>
+        <item>ORANGE</item>
+        <item>RED</item>
+        <item>GREEN</item>
+    </string-array>
+</resources>

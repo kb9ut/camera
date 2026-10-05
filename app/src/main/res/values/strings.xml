@@ -12,4 +12,21 @@
     <string name="toast_permission_required">カメラとマイクの許可が必要です</string>
     <string name="toast_camera_failed">カメラを起動できませんでした</string>
     <string name="cd_recording">録画中</string>
+    <string name="settings_title">setcam の設定</string>
+    <string name="pref_cat_video">動画</string>
+    <string name="pref_resolution">解像度</string>
+    <string name="pref_cat_stamp">日時の表示</string>
+    <string name="pref_stamp_enabled">日時を映像に入れる</string>
+    <string name="pref_format">書式</string>
+    <string name="pref_format_custom">カスタム</string>
+    <string name="pref_format_custom_title">カスタム書式</string>
+    <string name="pref_format_custom_dialog_message">例: yyyy/M/d H:mm（y=年 M=月 d=日 H=時 m=分 s=秒 a=午前/午後）</string>
+    <string name="pref_position">位置</string>
+    <string name="pref_font">フォント</string>
+    <string name="pref_font_digital_note">%1$s（数字と一部の記号のみデジタル表示。英字や / などは通常フォント）</string>
+    <string name="pref_color">色</string>
+    <string name="pref_size">大きさ（短辺に対する %）</string>
+    <string name="error_invalid_format">書式が正しくありません</string>
+    <string name="cd_position_grid">日時を表示する位置</string>
+    <string name="cd_stamp_preview">日時表示のプレビュー</string>
 </resources>
