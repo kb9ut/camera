@@ -20,7 +20,7 @@ Setlog のような「アイコンを押したら短い動画を撮って自動�
 | 操作 | 動作 |
 |---|---|
 | ランチャーアイコンをタップ | `CaptureActivity` を起動し、即座に 2 秒録画 → 保存 → 自動で閉じる |
-| 長押しショートカット「3秒後に撮影」 | `CaptureActivity`（extra `delay_sec=3`）→ 3・2・1 カウントダウン → 2 秒録画 → 保存 → 閉じる |
+| 長押しショートカット「3秒後に撮影」 | `CaptureActivity`（action `com.ktakata.setcam.action.CAPTURE_DELAYED`）→ 3・2・1 カウントダウン → 2 秒録画 → 保存 → 閉じる |
 | 長押しショートカット「設定」 | `SettingsActivity` を起動 |
 
 - ショートカットは静的 App Shortcut（`res/xml/shortcuts.xml`）で定義する。
@@ -52,11 +52,11 @@ AndroidX Preference を使い、値は `SharedPreferences` に保存する。3×
 
 - 画面上部にプレビューを置き、灰色の背景に現在の設定で文字を描画する（`StampRenderer` を共用）。
 - カスタム書式は `DateTimeFormatter.ofPattern` で検証する。不正なら入力欄にエラーを表示し、保存しない。
-- フォントにデジタル（DSEG7）を選んだ場合、「数字と一部の記号のみ表示できます（英字や `/` は表示されません）」という注意書きを出す。
+- フォントにデジタル（DSEG7）を選んだ場合、「数字と一部の記号のみデジタル表示（英字や `/` などは通常フォントで表示）」という注意書きを出す。
 
 ## 日時の焼き込み
 
-- CameraX 1.4 の `OverlayEffect`（`androidx.camera:camera-effects`）を使う。対象は `CameraEffect.PREVIEW | CameraEffect.VIDEO_CAPTURE`。
+- CameraX の `OverlayEffect`（`androidx.camera:camera-effects`）を使う。対象は `CameraEffect.PREVIEW | CameraEffect.VIDEO_CAPTURE`。
 - `UseCaseGroup.Builder().addUseCase(preview).addUseCase(videoCapture).addEffect(overlay)` でバインドする。
 - GPU 上で合成し、ハードウェアエンコーダーへそのまま渡すため、後から再エンコードはしない（画質の劣化や保存待ちが発生しない）。
 - 描画内容は**毎フレームの現在時刻**とする（秒を含む書式なら、録画中に表示が進む）。
@@ -95,20 +95,20 @@ onCreate
 
 - `MediaStoreOutputOptions` で `MediaStore.Video.Media.EXTERNAL_CONTENT_URI` に書き込む。
 - `RELATIVE_PATH = Movies/setcam`、ファイル名は `setcam_yyyyMMdd_HHmmss.mp4`（端末ローカル時刻）。
-- Android 10 以上ではストレージ権限は不要。minSdk 26〜28 では `WRITE_EXTERNAL_STORAGE`（`maxSdkVersion=28`）を宣言する。
+- minSdk 29（Android 10）以上なので、ストレージ権限は不要。
 - 注意: Google フォト等のバックアップで `Movies/setcam` フォルダを有効にすると、クラウドにアップロードされる。既定では対象外。
 
 ## 権限
 
 - `android.permission.CAMERA`
 - `android.permission.RECORD_AUDIO`
-- `android.permission.WRITE_EXTERNAL_STORAGE`（`maxSdkVersion="28"`）
 
 ## 技術構成
 
 - Kotlin、単一 `app` モジュール
-- minSdk 26 / targetSdk 35 / compileSdk 35
-- CameraX 1.4 系（`camera-core`, `camera-camera2`, `camera-lifecycle`, `camera-video`, `camera-view`, `camera-effects`）
+- minSdk 29 / targetSdk 36 / compileSdk 36
+- AGP 9.4.1（組み込み Kotlin を使用）/ Gradle 9.8.0 / JDK は Android Studio 同梱の JBR 21
+- CameraX 1.6.2（`camera-core`, `camera-camera2`, `camera-lifecycle`, `camera-video`, `camera-view`, `camera-effects`）
 - AndroidX Preference（`preference-ktx`）
 - UI は View ベース（Compose は使わない）
 - パッケージ名: `com.ktakata.setcam`
