@@ -4,6 +4,9 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.content.pm.PackageManager
+import android.graphics.Color
+import android.graphics.Matrix
+import android.graphics.PorterDuff
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -17,11 +20,13 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatActivity
+import androidx.camera.core.CameraEffect
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
 import androidx.camera.core.UseCaseGroup
 import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.effects.OverlayEffect
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.FallbackStrategy
 import androidx.camera.video.MediaStoreOutputOptions
@@ -36,6 +41,9 @@ import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
 import com.ktakata.setcam.settings.Resolution
 import com.ktakata.setcam.settings.SetcamSettings
+import com.ktakata.setcam.stamp.StampRenderer
+import com.ktakata.setcam.stamp.StampStyle
+import com.ktakata.setcam.stamp.UprightTransform
 import java.time.LocalDateTime
 
 /** 起動したら（必要ならカウントダウンの後で）2 秒録画して保存し、自分で閉じる。 */
@@ -48,6 +56,7 @@ class CaptureActivity : AppCompatActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var videoCapture: VideoCapture<Recorder>? = null
     private var recording: Recording? = null
+    private var overlayEffect: OverlayEffect? = null
     private var awaitingPermission = false
     private var finishing = false
 
@@ -101,6 +110,7 @@ class CaptureActivity : AppCompatActivity() {
     override fun onDestroy() {
         mainHandler.removeCallbacksAndMessages(null)
         recording?.close()
+        overlayEffect?.close()
         super.onDestroy()
     }
 
@@ -111,7 +121,12 @@ class CaptureActivity : AppCompatActivity() {
             try {
                 val provider = future.get()
                 val settings = SetcamSettings.from(PreferenceManager.getDefaultSharedPreferences(this).all)
-                videoCapture = bindUseCases(provider, settings)
+                videoCapture = try {
+                    bindUseCases(provider, settings, stabilize = true)
+                } catch (e: IllegalArgumentException) {
+                    Log.w(TAG, "binding with stabilization failed, retrying without it", e)
+                    bindUseCases(provider, settings, stabilize = false)
+                }
                 beginCountdown()
             } catch (e: Exception) {
                 Log.e(TAG, "camera start failed", e)
@@ -120,7 +135,11 @@ class CaptureActivity : AppCompatActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
-    private fun bindUseCases(provider: ProcessCameraProvider, settings: SetcamSettings): VideoCapture<Recorder> {
+    private fun bindUseCases(
+        provider: ProcessCameraProvider,
+        settings: SetcamSettings,
+        stabilize: Boolean,
+    ): VideoCapture<Recorder> {
         val selector = CameraSelector.DEFAULT_BACK_CAMERA
         val capabilities = Recorder.getVideoCapabilities(provider.getCameraInfo(selector))
         val quality = settings.resolution.toQuality()
@@ -128,7 +147,7 @@ class CaptureActivity : AppCompatActivity() {
             .setQualitySelector(QualitySelector.from(quality, FallbackStrategy.lowerQualityOrHigherThan(quality)))
             .build()
         val videoCapture = VideoCapture.Builder(recorder)
-            .setVideoStabilizationEnabled(capabilities.isStabilizationSupported)
+            .setVideoStabilizationEnabled(stabilize && capabilities.isStabilizationSupported)
             .build()
         val preview = Preview.Builder()
             .setResolutionSelector(
@@ -142,10 +161,38 @@ class CaptureActivity : AppCompatActivity() {
         val group = UseCaseGroup.Builder()
             .addUseCase(preview)
             .addUseCase(videoCapture)
-            .build()
+        overlayEffect?.close()
+        overlayEffect = settings.stamp?.let { buildOverlay(it) }?.also { group.addEffect(it) }
+
         provider.unbindAll()
-        provider.bindToLifecycle(this, selector, group)
+        provider.bindToLifecycle(this, selector, group.build())
         return videoCapture
+    }
+
+    /** プレビューと録画の両方のフレームに、正立した向きで日時を描く。 */
+    private fun buildOverlay(style: StampStyle): OverlayEffect {
+        val renderer = StampRenderer(this, style)
+        val matrix = Matrix()
+        val effect = OverlayEffect(
+            CameraEffect.PREVIEW or CameraEffect.VIDEO_CAPTURE,
+            0,
+            mainHandler,
+        ) { t -> Log.e(TAG, "overlay effect error", t) }
+        effect.setOnDrawListener { frame ->
+            val canvas = frame.overlayCanvas
+            canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+            val crop = frame.cropRect
+            val rotation = frame.rotationDegrees
+            Log.d(TAG, "rot=$rotation crop=$crop size=${frame.size}")
+            val upright = UprightTransform.uprightSize(crop.width(), crop.height(), rotation)
+            matrix.setValues(UprightTransform.uprightToBuffer(crop.left, crop.top, crop.width(), crop.height(), rotation))
+            canvas.save()
+            canvas.concat(matrix)
+            renderer.draw(canvas, upright.width, upright.height)
+            canvas.restore()
+            true
+        }
+        return effect
     }
 
     private fun beginCountdown() {
