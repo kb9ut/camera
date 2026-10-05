@@ -307,7 +307,7 @@ class CaptureActivity : AppCompatActivity() {
         private const val DELAY_SEC = 3
         private const val RECORD_DURATION_MS = 2000L
         private const val STREAM_WAIT_MS = 3000L
-        private const val RELATIVE_PATH = "Movies/setcam"
+        private const val RELATIVE_PATH = "Movies/sscam"
         private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
     }
 }

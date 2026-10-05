@@ -7,5 +7,5 @@ import java.util.Locale
 object FileNames {
     private val FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss", Locale.ROOT)
 
-    fun videoFileName(time: LocalDateTime): String = "setcam_${FORMAT.format(time)}.mp4"
+    fun videoFileName(time: LocalDateTime): String = "sscam_${FORMAT.format(time)}.mp4"
 }
